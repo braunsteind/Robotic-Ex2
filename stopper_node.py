@@ -18,7 +18,7 @@ if __name__ == "__main__":
     if rospy.has_param('~forward_speed'):
         forward_speed = rospy.get_param('~forward_speed')
     if rospy.has_param('~rotation_speed'):
-        rotation_speed = rospy.get_param('~forward_speed')
+        rotation_speed = rospy.get_param('~rotation_speed')
     if rospy.has_param('~min_angle'):
         min_angle = rospy.get_param('~min_angle')
     if rospy.has_param('~max_angle'):

@@ -20,27 +20,58 @@ class Stopper(object):
         # default values
         self.direction = 1
         self.keep_moving = True
+        self.obstacle = False
 
         self.command_pub = rospy.Publisher("/cmd_vel_mux/input/teleop", Twist, queue_size=10)
         self.laser_subscriber = rospy.Subscriber("scan", LaserScan, self.scan_callback, queue_size=1)
 
-        self.round = 1
+        self.round = 5
         self.angular_speed = rotation_speed * PI / 180
         self.relative_angle = self.round * PI / 180
 
-    def findDirection(self, ranges):
+    def find_direction(self, ranges):
+        # nan_left = 0
+        # nan_right = 0
         max_distance = 0
+        i = 0
         index = 0
-        # loop over ranges
-        for i in ranges:
-            # find the max distance
+        size = len(ranges)
+        # loop on ranges
+        while i < size:
+            # # if nan update nan counter
+            # if math.isnan(ranges[i]):
+            #     # if left side, update left counter
+            #     if i < size / 2:
+            #         nan_left += 1
+            #     # right side, update right counter
+            #     else:
+            #         nan_right += 1
+
+            # if clear
+            if math.isnan(ranges[i]):
+                if i < size / 2:
+                    self.direction = 1
+                else:
+                    self.direction = -1
+                break
+            # if not nan, check for max distance
             if ranges[i] > max_distance:
                 max_distance = ranges[i]
                 index = i
-        # return the direction to turn
-        if index < (len(ranges) / 2):
-            return 1
-        return -1
+            i += 1
+
+        # # if left is clear
+        # if nan_left > nan_right * nan_right:
+        #     self.direction = 1
+        # # if right is clear
+        # elif nan_right > nan_left * nan_left:
+        #     self.direction = -1
+        # set the direction to turn based on max value
+        # else:
+        if index < size / 2:
+            self.direction = 1
+        else:
+            self.direction = -1
 
     def start_moving(self):
         rate = rospy.Rate(10)
@@ -50,7 +81,7 @@ class Stopper(object):
                 self.move_forward()
             else:
                 self.rotate()
-            rate.sleep()
+        rate.sleep()
 
     # handling the forward movement
     def move_forward(self):
@@ -61,15 +92,22 @@ class Stopper(object):
     def scan_callback(self, scan_msg):
         scan_msg.angle_min = self.min_scan_angle
         scan_msg.angle_max = self.max_scan_angle
-
+        # is there an obstacle
+        self.obstacle = False
         # go over the ranges
         for dist in scan_msg.ranges:
             # obstacle found
             if dist < self.min_dist_from_obstacle:
                 # stop moving
                 self.keep_moving = False
+                self.obstacle = True
                 # find the direction
-                self.direction = self.findDirection(scan_msg.ranges)
+                self.find_direction(scan_msg.ranges)
+                break
+        # if no obstacle
+        if not self.obstacle:
+            # keep moving
+            self.keep_moving = True
 
     # handling rotation
     def rotate(self):
@@ -84,5 +122,3 @@ class Stopper(object):
             self.command_pub.publish(rot)
             t1 = rospy.Time.now().to_sec()
             current_angle = self.angular_speed * (t1 - t0)
-        # keep moving
-        self.keep_moving = True
